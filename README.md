@@ -120,6 +120,10 @@ The counter's assignment in the clocked process means we want a register. The ex
 
 While there are many other features of VHDL, most of it is just based around the concepts we have just used. Sequential assignment to create registers and combinational logic.
 
+I'm not going to talk about how to use Vivado's schematic viewer, but if you are curious about how Vivado interprets this VHDL, here's a pretty picture that Vivado drew me.
+
+All of this hopefully matches the mental model that you have of this circuit. You have an adder, a register and a comparator. This picture was generated before Vivado mapped these cells to the FPGA's internal cell library. The block diagram of the circuit after Vivado has mapped to its cell library is a bit busier.
+
 ## Bitfile generation
 Now that we understand our source files, let's try to compile. We compile our constraints and HDL files into bitfiles that we can transmit to the FPGA chip. Similar to how SW has steps like parsing, object code generation, and linking, FPGA designs also have discrete steps. I'm not going to talk too much about what they do, but it's important to understand the general order that they occur in.
 
@@ -157,7 +161,7 @@ Assuming we have our source files in the right place with the right names and Vi
 ```
 vivado -mode batch -source build.tcl
 ```
-You should see a bunch of noise rain down from the console as it compiles the design but assuming you didn't mess anything up, then it should've spit out a bitfile named `blinky.bit`. Then we need to send the bitfile to the FPGA.
+You should see a bunch of noise rain down from the console as it compiles the design but assuming you didn't mess anything up, then it should've eventually said something like: `INFO: [Vivado 12-1842] Bitgen Completed Successfully.` and spit out a bitfile named `blinky.bit`. Then we need to send the bitfile to the FPGA.
 
 ## Downloading the bitfile
 For Vivado's hardware manager, I'd probably recommend doing this from GUI mode the first time. If you launch Vivado in GUI mode, there's a big friendly buton for "Open Hardware Manager". Give that a click. One of the neat things about Vivado is that it displays what TCL commands you are executing when you push a button. I like to follow along with what buttons I'm clicking to see what Vivado is doing. It's also nice because it makes it easier to copy these commands and execute them in TCL scripts. By clicking that button, you should've executed `open_hw`. At this point, we make sure our FPGA is connected to the computer, it's in JTAG mode, and powered on correctly, and the drivers installed correctly.
