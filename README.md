@@ -14,7 +14,7 @@ The most important constraints that a simple FPGA design needs are pin locations
 To blink some lights on our arty board we need the following constraint file.
 
 top.xdc
-```
+```tcl
 set_property -dict { PACKAGE_PIN E3    IOSTANDARD LVCMOS33 } [get_ports { clk100mhz }];
 create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports { clk100mhz }];
 set_property -dict { PACKAGE_PIN H5    IOSTANDARD LVCMOS33 } [get_ports { led }];
@@ -25,7 +25,7 @@ These are copied directly from the XDC file that was provided by Digilent. The b
 The other type of source file is the HDL. You get to choose VHDL or Verilog. While there are alternatives, I wouldn't say that any of them are mature enough to use them as a starting language yet. For this tutorial, I will use VHDL because it's what I'm more familiar with, but the two languages aren't amazingly different in their capabilities. HDLs describe logic and the connections between components. HDL files usually consist of expressions that assign values to signals. As an example, I'm going to give away the VHDL for blinken-lights so you can see what the basic structure of a VHDL file looks like.
 
 top.vhd
-```
+```vhdl
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -54,14 +54,14 @@ end behavioral;
 ```
 
 I'll break down each of the bits of this example:
-```
+```vhdl
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 ```
 This is boring boiler plate you will need in nearly every component. These standard libraries define most of the types used in modern VHDL.
 
-```
+```vhdl
 entity top is
   port (
     clk100mhz : in std_logic;
@@ -71,7 +71,7 @@ end top;
 ```
 The two important pieces here are that we gave this component a name (`top`), and we declare our port names, their directions and their types. Both of the types of these ports are `std_logic`. There's a lot of interesting things that `std_logic` can do, but in this case, it's only interesting property is the fact that you can assign them the value `'1'` and the value `'0'`. They are useful for describing single-bit wires or pins.
 
-```
+```vhdl
 architecture behavioral of top is
   signal counter : integer range 0 to 100_000_000 := 0;
 begin
@@ -80,14 +80,14 @@ You can create multiple implementations of the same component. Honestly, this fe
 
 In VHDL you can construct combinational logic through assignment of expressions. Expressions can use operator primitives like +, -, and, or, not, etc. Here's an example of a VHDL combinational expression.
 
-```
+```vhdl
 signal_name <= foo + bar; 
 ```
 
 It's important to understand that this combinational statement doesn't execute at a particular moment in time, it is continuously executing. `signal_name` is wired to the output of the result of a adder connected to `foo` and `bar`. As `foo` and `bar` change over time, `signal_name` will short time afterward to the sum of `foo` and `bar`.
 
 In our blinken-lights example we have a slightly more complicated expression:
-```
+```vhdl
 led <= '1' when counter > 50_000_000 else '0';
 ```
 
@@ -97,7 +97,7 @@ One of the basic building blocks of an FPGA is a register. A register is a build
 
 This is the basic pattern of what a register looks like in VHDL
 
-```
+```vhdl
 process(clk100mhz)
 begin
   if rising_edge(clk100mhz) then
@@ -108,7 +108,7 @@ end process;
 This process is assigning a new value to `signal_name` every rising edge of the clock. Any signal that is assigned inside of the rising edge of a clock will infer a register. So Vivado will recognize that `signal name` is a register. `next_value` doesn't need to be a signal. It can be an expression and Vivado will infer the necessary combinational logic that feeds into the register's next value.
 
 This section in our blinken-lights example is the counter implementation.
-```
+```vhdl
 process(clk100mhz)
 begin
   if rising_edge(clk100mhz) then
@@ -141,7 +141,7 @@ Now at this point you might open up Vivado in GUI mode, create a project, add yo
 
 Here's an example of a TCL script you might use:
 build.tcl
-```
+```tcl
 read_vhdl top.vhd
 read_xdc top.xdc
 synth_design -top top -part xc7a35ticsg324-1L
@@ -155,7 +155,7 @@ You can see how this is roughly analogous to a Makefile for a software project. 
 
 Assuming we have our source files in the right place with the right names and Vivado in our path, then we should be able to invoke Vivado from commandline.
 ```
->vivado -mode batch -source build.tcl
+vivado -mode batch -source build.tcl
 ```
 You should see a bunch of noise rain down from the console as it compiles the design but assuming you didn't mess anything up, then it should've spit out a bitfile named `blinky.bit`. Then we need to send the bitfile to the FPGA.
 
@@ -167,7 +167,7 @@ Now we want to auto-connect. There's a little icon with a green board and yellow
 We are doing a JTAG scan of our system. The JTAG scan is capable of doing some pretty neat poking around on our hardware (for instance, apparently my FPGA is apparently 36.0 degrees celsius), but the reason we are here is to download our bitfile.
 
 I just right-click my FPGA (xc7a35t), and click program device, and browse to your bitfile. The Tcl console says we executed something like this
-```
+```tcl
 set_property PROBES.FILE {} [lindex [get_hw_devices] 0]
 set_property PROGRAM.FILE {blinky.bit} [lindex [get_hw_devices] 0]
 program_hw_devices [lindex [get_hw_devices] 0]
