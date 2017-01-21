@@ -126,6 +126,18 @@ end process;
 ```
 The counter's assignment in the clocked process means we want a register. The expression `counter + 1` means every clock cycle we would like this register to be incremented. The clock's frequency is 100MHz so we are incrementing this counter at 100,000,000 times per second. If you recall, our specific counter has a range from 0 to 100,000,000 so this counter will wrap around once per second.
 
+This is a waveform of the behavior we expect to see for the first few 50 nanoseconds:
+
+![waveform 1](wavedrom.png)
+
+Then after a half second has elapsed, it should do this
+
+![waveform 2](wavedrom2.png)
+
+Then after a second has elapsed, it should do this.
+
+![waveform 3](wavedrom3.png)
+
 While there are many other features of VHDL, most of it is just based around the concepts we have just used. Assignments within clocked processes will create registers, all other logic is combinational.
 
 ## Bitfile generation
