@@ -11,7 +11,7 @@ This tutorial assumes you've downloaded, licensed, and installed Vivado. This al
 ## Source Files
 The first thing that you need to understand about in FPGA designs are your source files. You have two types of source files. Your HDL which defines the logic and your constraints.
 
-The most important constraints that a simple FPGA design needs are pin locations. You obviously can't use whichever pins you want. If you want to blink an LED, you'll need to know which pin is connected to the LED. Usually if you buy a dev board, the board vendor will provide you with a constraint file that tells you where all of the pins are. Constraint files in Vivado have the extension XDC. The syntax of an XDC file is TCL (the scripting language). Vivado will essentially just execute your XDC file like a TCL script to assign pin locations to your signals. If the only thing that we want to do is to blink an LED then we probably only need a clock and an LED pin. We can delete the rest of the constraints.
+The most important constraints that a simple FPGA design needs are pin locations. You obviously can't use whichever pins you want. If you want to blink an LED, you'll need to know which pin is connected to the LED. Usually if you buy a dev board, the board vendor will provide you with a constraint file that tells you where all of the pins are. If they don't, then they usually provide you with a schematic of the board and you'll have to write it yourself from scratch. Which isn't very fun. Constraint files in Vivado have the extension XDC. The syntax of an XDC file is TCL (the scripting language). Vivado will essentially just execute your XDC file like a TCL script to assign pin locations to your signals. If the only thing that we want to do is to blink an LED then we probably only need a clock and an LED pin. We can delete the rest of the constraints.
 
 To blink some lights on our arty board we need the following constraint file.
 
@@ -59,7 +59,7 @@ Vivado will read this VHDL description and infer logic that looks like this:
 
 ![rtl schematic](rtl_schematic.png)
 
-In this schematic, you can see there is a register, an adder, and a comparator. The register and adder will just continuously count up to a 100 million and then rollover and do it again. The comparator will shine the LED if the register is greater than than 50 million. The comparator and adder are combinational component and obviously the counter is a register.
+In this schematic, you can see there is a register, an adder, and a comparator. The register and adder will just continuously count up to a 100 million and then rollover and do it again. The comparator will shine the LED if the register is greater than than 50 million. The comparator and adder are combinational component and the counter is a register.
 
 I'll break down each of the bits of the VHDL:
 ```vhdl
@@ -77,14 +77,14 @@ entity top is
   );
 end top;
 ```
-The two important pieces here are that we gave this component a name (`top`), and we declare our port names, their directions and their types. Both of the types of these ports are `std_logic`. There's a lot of interesting things that `std_logic` can do, but in this case, it's only interesting property is the fact that you can assign them the value `'1'` and the value `'0'`. They are useful for describing single-bit wires or pins.
+The two important pieces here are giving this component a name (`top`), and we declare our port names, their directions and their types. Both of the types of these ports are `std_logic`. There's a lot of interesting things that `std_logic` can do, but in this case, it's only interesting property is the fact that you can assign them the value `'1'` and the value `'0'`. They are useful for describing single-bit wires or pins.
 
 ```vhdl
 architecture behavioral of top is
   signal counter : integer range 0 to 100_000_000 := 0;
 begin
 ```
-You can create multiple implementations of the same component. Honestly, this feature of VHDL isn't used very often. 99.9% of VHDL entities only have one architecture. But we still need to give it a name. The name in this example is `behavioral`. In between the `is` and the `begin` are where you put your declarations (signals, constants, functions, etc). In this example we declare one signal named `counter`. We also declared it's type (`integer range 0 to 100_000_000`) and it's initial value (`0`). In VHDL we can specify any range of integer that we would like. This specific integer goes from 0 to 100 million. VHDL integers wrap, so if I increment this particular signal when it's current value is 100 million, it's new value would be 0.
+You can create multiple implementations of the same component. Honestly, this feature of VHDL isn't used very often. 99.9% of VHDL entities only have one architecture (named 'Behavioral' or 'rtl'). But we still need to give it a name. The name in this example is `behavioral`. In between the `is` and the `begin` are where you put your declarations (signals, constants, functions, etc). In this example we declare one signal named `counter`. We also declared it's type (`integer range 0 to 100_000_000`) and it's initial value (`0`). In VHDL we can specify any range of integer that we would like. This specific integer goes from 0 to 100 million. VHDL integers wrap, so if I increment this particular signal when it's current value is 100 million, it's new value would be 0.
 
 In VHDL you can construct combinational logic through assignment of expressions. Expressions can use operator primitives like +, -, and, or, not, etc. Here's an example of a VHDL combinational expression.
 
@@ -200,12 +200,7 @@ I just right-click my FPGA (xc7a35t) and click program device
 
 ![Program Device Icon](program-device.png)
 
-Once you browse to your bitfile, the Tcl console says we executed something like this
-```tcl
-set_property PROBES.FILE {} [lindex [get_hw_devices] 0]
-set_property PROGRAM.FILE {blinky.bit} [lindex [get_hw_devices] 0]
-program_hw_devices [lindex [get_hw_devices] 0]
-```
+Once you browse to your bitfile, the Tcl console says we downloaded it successfully.
 
 Neat. So now the LED should be blinking. We have blinken-lights!
 
@@ -436,3 +431,57 @@ One of the ways to make your projects more portable across machines and versions
 One of the nice things about having a project is being able to set your board. If your board vendor is nice, like Digilent then they can provide board files that you can add to your Vivado install. By using a board_part, you automatically import bunch of information about your hardware. For instance, if you are in the block diagram editor, and you create a GPIO block and run Connection Automation, it will ask you whether you want to connect that gpio block to the switches, buttons, or leds. You don't even need to look up where each of those pins are.
 
 Also, there are wizards in Vivado that are really irritating to look up all the information for. One of the wizards is the Memory Interface Generator or MIG. Our board file already has preset settings for all of the DRAM information so we don't need to fill all of that information out.
+
+## Simulation
+
+Right. So remember how I said a while ago that a lot of VHDL syntax is designed for simulation, not actually describing hardware? This is true. So how do we simulate VHDL? Well, you can use open source simulators and waveform viewers or you can use the simulator that is included in Vivado named xsim. Xsim is actually a separate executable, so you can go through and add all of the VHDL files by invoking the xsim commands and then elaborating them from there. Or, you can launch xsim from a Vivado project and it will use the same source files you already added.
+
+Before we simulate, we need a test bench that instantiates our device under test or DUT. I wrote a simple VHDL file, that wraps around my vga_controller that we were looking at earlier.
+
+```vhdl
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity top_sim is
+end top_sim;
+
+architecture test_bench of top_sim is
+  signal clk100mhz : std_logic := '0';
+  signal h_sync : std_logic := '0';
+  signal v_sync : std_logic := '0';
+  signal disp_ena : std_logic := '0';
+  signal row : unsigned(9 downto 0) := (others=>'0');
+  signal col : unsigned(9 downto 0) := (others=>'0');
+  signal pclk : std_logic := '0';
+begin
+
+myproc : process
+begin
+  while true loop
+    clk100mhz <= not clk100mhz;
+    wait for 10ns;
+  end loop;
+end process;
+
+vga_control : entity work.vga_controller(behavioral)
+  port map (
+    clk100mhz => clk100mhz,
+    h_sync => h_sync,
+    v_sync => v_sync,
+    disp_ena => disp_ena,
+    row => row,
+    col => col,
+    pclk => pclk);
+
+end test_bench;
+```
+Notice that now I have a process that waits for 10ns. Wait statements don't really make sense in hardware so they are mostly used in simulation. This particular process is simulating the behavior of my clock signal.
+
+So we add this file to our project, and then click the "Run Simulation" button and voila. A wild waveform graph appears!
+
+If we zoom around eventually, we can see some useful information:
+
+![simulation waveform](sim_waveform.png)
+
+I can inspect this waveform and determine that my device appears to be behaving correctly. In more complex designs, I'd probably just throw a bunch of asserts in my testbench and verify the correct operation programmatically. But for simple designs, it's easiest just to look at it and determine that it is doing what you intend.
