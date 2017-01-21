@@ -363,7 +363,76 @@ then we would be presented with a more complicated schematic that looks like thi
 
 ![post synthesis netlist](vga_schematic-post-synth.png)
 
-This is a schematic that has complete mapping to the 7-series tech lib, so every single cell in this schematic is an instance of primitive in the tech lib.
+This is a schematic that has complete mapping to the 7-series tech lib, so every single cell in this schematic is an instance of primitive in the tech lib. In this case, all of my combinational logic was implemented with LUTs and all of my registers were implemented with flip flops, and of course the PLL is still there at the bottom.
 
+You might ask, if I can infer LUTs and FF's, can I infer PLLs? The answer is again, in the Xilinx Tech Lib guide. There's an entry in the PLLE2_BASE that says Inference: No. So the only way to get this specific primitive is to instantiate it manually.
 
+![No inferring PLLs](plls_no_infer.png)
 
+One of the advantages of inferred components over instantiated primitives is that it makes the design more portable. I will not be able to instantiate this PLL primitive on an Altera FPGA for example.
+
+## Hierarchal Design
+
+From a SW world, you might be used to linking against library binaries in your software applications. There are some advantages to pulling in dependencies as precompiled files instead of copying in the source and adding each individual source file of your dependency to your design.
+
+The intermediate form of a digital design is a netlist. Which is a list of components and how they are connected together. The schematics that we have been looking at are simply netlist visualizations. A popular netlist format is EDIF. EDIF lists the components and their connections in S-Expression format, so if you are a fan of LISP, you are going to love EDIF. Many binary formats of netlists are simply compressed or encrypted EDIF files.
+
+Here's an excerpt of an EDIF file.
+```
+...
+   (cell PLLE2_ADV (celltype GENERIC)
+     (view netlist (viewtype NETLIST)
+       (interface 
+        (port CLKFBOUT (direction OUTPUT))
+        (port CLKOUT0 (direction OUTPUT))
+        (port CLKOUT1 (direction OUTPUT))
+        (port CLKOUT2 (direction OUTPUT))
+        (port CLKOUT3 (direction OUTPUT))
+        (port CLKOUT4 (direction OUTPUT))
+        (port CLKOUT5 (direction OUTPUT))
+        (port DRDY (direction OUTPUT))
+        (port LOCKED (direction OUTPUT))
+        (port CLKFBIN (direction INPUT))
+        (port CLKIN1 (direction INPUT))
+        (port CLKIN2 (direction INPUT))
+        (port CLKINSEL (direction INPUT))
+        (port DCLK (direction INPUT))
+        (port DEN (direction INPUT))
+        (port DWE (direction INPUT))
+        (port PWRDWN (direction INPUT))
+        (port RST (direction INPUT))
+        (port (array (rename DO "DO[15:0]") 16) (direction OUTPUT))
+        (port (array (rename DADDR "DADDR[6:0]") 7) (direction INPUT))
+        (port (array (rename DI "DI[15:0]") 16) (direction INPUT))
+       )
+     )
+   )
+   (cell LUT5 (celltype GENERIC)
+     (view netlist (viewtype NETLIST)
+       (interface 
+        (port O (direction OUTPUT))
+        (port I0 (direction INPUT))
+        (port I1 (direction INPUT))
+        (port I2 (direction INPUT))
+        (port I3 (direction INPUT))
+        (port I4 (direction INPUT))
+       )
+     )
+   )
+```
+
+Honestly, it's pretty readable, but you wouldn't want to write it by hand. The way that you generate EDIF files in Vivado is the command `write_edif`. You can do it after RTL synthesis, or full synthesis or even after place or route. The EDIF will just have the information from the stages it has completed so far, and Vivado will complete any stages that it has left. You can add an EDIF file as a source file using the `read_edif` command.
+
+Both VHDL and Verilog allow instantiating components without their definition. This is sometimes called "Black box" instantiation. You are telling Vivado that this component will exist at some point. Vivado will happily synthesize VHDL files without all of the components that are instantiated as long as they are instantiated as a black box.
+
+You can mix and match languages in your input files. Your input files into your Vivado project may include VDHL, Verilog, EDIF, or block diagrams made with Vivado's block diagram editor.
+
+## You still haven't explained Vivado Projects
+
+Yes. You can create Vivado projects from the TCL commands or in GUI mode. The advantages of projects is that it saves checkpoints of the design after it finishes synthesis or implementation. It saves them in a DCP file which is a netlist combined with some other project settings. It also allows you to set default parameters to your commands like the FPGA part number or what mode to run synthesis in. One of the reasons I don't like Vivado projects is they dump loads of crap files and it's difficult to determine which are important to save to version control and which are not. Vivado projects also are painful to move between versions of Vivado.
+
+One of the ways to make your projects more portable across machines and versions of Vivado is to export a project TCL script. Vivado will write out a TCL script that reproduces all of the settings of the current project. Sometimes it writes things in a funny way so often I edit it afterward to make it cleaner. For instance, sometimes the script saves the source file list with their absolute paths instead of the path relative to the project which is less helpful, or sometimes it saves a lot of settings that I don't care about. The command to write a project tcl is `write_project_tcl`. Usually I use the option `-no_copy_sources`.
+
+One of the nice things about having a project is being able to set your board. If your board vendor is nice, like Digilent then they can provide board files that you can add to your Vivado install. By using a board_part, you automatically import bunch of information about your hardware. For instance, if you are in the block diagram editor, and you create a GPIO block and run Connection Automation, it will ask you whether you want to connect that gpio block to the switches, buttons, or leds. You don't even need to look up where each of those pins are.
+
+Also, there are wizards in Vivado that are really irritating to look up all the information for. One of the wizards is the Memory Interface Generator or MIG. Our board file already has preset settings for all of the DRAM information so we don't need to fill all of that information out.
