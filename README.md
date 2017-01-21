@@ -126,7 +126,7 @@ end process;
 ```
 The counter's assignment in the clocked process means we want a register. The expression `counter + 1` means every clock cycle we would like this register to be incremented. The clock's frequency is 100MHz so we are incrementing this counter at 100,000,000 times per second. If you recall, our specific counter has a range from 0 to 100,000,000 so this counter will wrap around once per second.
 
-While there are many other features of VHDL, most of it is just based around the concepts we have just used. Sequential assignment to create registers and combinational logic.
+While there are many other features of VHDL, most of it is just based around the concepts we have just used. Assignments within clocked processes will create registers, all other logic is combinational.
 
 ## Bitfile generation
 Now that we understand our source files, let's try to compile. We compile our constraints and HDL files into bitfiles that we can transmit to the FPGA chip. Similar to how SW has steps like parsing, object code generation, and linking, FPGA designs also have discrete steps. I'm not going to talk too much about what they do, but it's important to understand the general order that they occur in.
