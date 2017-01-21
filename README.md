@@ -4,6 +4,8 @@ Apparently many software engineers hear about FPGA's, they get excited enough to
 
 This specific tutorial uses Digilent's Arty board and VHDL.
 
+![Arty board picture](arty_fpga_board.jpg)
+
 This tutorial assumes you've downloaded, licensed, and installed Vivado. This also assumes that you've figured out the right switch settings to set on your board, and you got the USB driver working.
 
 ## Source Files
@@ -22,7 +24,7 @@ set_property -dict { PACKAGE_PIN H5    IOSTANDARD LVCMOS33 } [get_ports { led }]
 
 These are copied directly from the XDC file that was provided by Digilent. The biggest change is that I renamed led[0] to led. There's a lot of information in these constraints. The most important bits are the `PACKAGE_PIN X` and the `get_ports { Y }`. X is which pin of the FPGA we are using and Y is the port name we will use in our VHDL.
 
-The other type of source file is the HDL. You get to choose VHDL or Verilog. While there are alternatives, I wouldn't say that any of them are mature enough to use them as a starting language yet. For this tutorial, I will use VHDL because it's what I'm more familiar with, but the two languages aren't amazingly different in their capabilities. HDLs describe logic and the connections between components. HDL files usually consist of expressions that assign values to signals. As an example, I'm going to give away the VHDL for blinken-lights so you can see what the basic structure of a VHDL file looks like.
+The other type of source file is the HDL. You get to choose VHDL or Verilog. While there are alternatives, I wouldn't say that any of them are mature enough to use them as a starting language yet. For this tutorial, I will use VHDL because it's what I'm more familiar with, but the two languages aren't really that different in their capabilities. HDLs describe logic and the connections between components. There are two types of components: registers (sequential logic) that updates every clock tick and combinational logic which updates pretty much immediately. As an example, I'm going to go through a simple blinking lights example so you can get a feel for the basic structure of a VHDL file.
 
 top.vhd
 ```vhdl
@@ -53,7 +55,13 @@ begin
 end behavioral;
 ```
 
-I'll break down each of the bits of this example:
+Vivado will read this VHDL description and infer logic that looks like this:
+
+![rtl schematic](rtl_schematic.png)
+
+In this schematic, you can see there is a register, an adder, and a comparator. The register and adder will just continuously count up to a 100 million and then rollover and do it again. The comparator will shine the LED if the register is greater than than 50 million. The comparator and adder are combinational component and obviously the counter is a register.
+
+I'll break down each of the bits of the VHDL:
 ```vhdl
 library ieee;
 use ieee.std_logic_1164.all;
@@ -120,10 +128,6 @@ The counter's assignment in the clocked process means we want a register. The ex
 
 While there are many other features of VHDL, most of it is just based around the concepts we have just used. Sequential assignment to create registers and combinational logic.
 
-I'm not going to talk about how to use Vivado's schematic viewer, but if you are curious about how Vivado interprets this VHDL, here's a pretty picture that Vivado drew me.
-
-All of this hopefully matches the mental model that you have of this circuit. You have an adder, a register and a comparator. This picture was generated before Vivado mapped these cells to the FPGA's internal cell library. The block diagram of the circuit after Vivado has mapped to its cell library is a bit busier.
-
 ## Bitfile generation
 Now that we understand our source files, let's try to compile. We compile our constraints and HDL files into bitfiles that we can transmit to the FPGA chip. Similar to how SW has steps like parsing, object code generation, and linking, FPGA designs also have discrete steps. I'm not going to talk too much about what they do, but it's important to understand the general order that they occur in.
 
@@ -164,13 +168,25 @@ vivado -mode batch -source build.tcl
 You should see a bunch of noise rain down from the console as it compiles the design but assuming you didn't mess anything up, then it should've eventually said something like: `INFO: [Vivado 12-1842] Bitgen Completed Successfully.` and spit out a bitfile named `blinky.bit`. Then we need to send the bitfile to the FPGA.
 
 ## Downloading the bitfile
-For Vivado's hardware manager, I'd probably recommend doing this from GUI mode the first time. If you launch Vivado in GUI mode, there's a big friendly buton for "Open Hardware Manager". Give that a click. One of the neat things about Vivado is that it displays what TCL commands you are executing when you push a button. I like to follow along with what buttons I'm clicking to see what Vivado is doing. It's also nice because it makes it easier to copy these commands and execute them in TCL scripts. By clicking that button, you should've executed `open_hw`. At this point, we make sure our FPGA is connected to the computer, it's in JTAG mode, and powered on correctly, and the drivers installed correctly.
+For Vivado's hardware manager, I'd probably recommend doing this from GUI mode the first time. If you launch Vivado in GUI mode, there's a big friendly button for "Open Hardware Manager".
 
-Now we want to auto-connect. There's a little icon with a green board and yellow down arrow. It's also an option if you click the Open target text up near the top. The Tcl prompt tells us that we executed `connect_hw_server`, `open_hw_target`, `current_hw_device [lindex [get_hw_devices] 0]` and `refresh_hw_device -update_hw_probes false [lindex [get_hw_devices] 0]`. All this is doing is finding out what devices you currently have connected to this machine and it sets the current device to what is probably your own Xilinx dev board you have connected to your computer.
+![Open Hardware Manager Icon](Open_HW_Manager.png)
+
+Give that a click. One of the neat things about Vivado is that it displays what TCL commands you are executing when you push a button. I like to follow along with what buttons I'm clicking to see what Vivado is doing. It's also nice because it makes it easier to copy these commands and execute them in TCL scripts. By clicking that button, you should've executed `open_hw`. At this point, we make sure our FPGA is connected to the computer, it's in JTAG mode, and powered on correctly, and the drivers installed correctly.
+
+Now we want to auto-connect. There's a little icon with a green board and yellow down arrow. It's also an option if you click the Open target text up near the top.
+
+![AutoConnect Icon](AutoConnect.png)
+
+If you click that, the Tcl prompt tells us that we executed `connect_hw_server`, `open_hw_target`, `current_hw_device [lindex [get_hw_devices] 0]` and `refresh_hw_device -update_hw_probes false [lindex [get_hw_devices] 0]`. All this is doing is finding out what devices you currently have connected to this machine and it sets the current device to what is probably your own Xilinx dev board you have connected to your computer.
 
 We are doing a JTAG scan of our system. The JTAG scan is capable of doing some pretty neat poking around on our hardware (for instance, apparently my FPGA is apparently 36.0 degrees celsius), but the reason we are here is to download our bitfile.
 
-I just right-click my FPGA (xc7a35t), and click program device, and browse to your bitfile. The Tcl console says we executed something like this
+I just right-click my FPGA (xc7a35t) and click program device
+
+![Program Device Icon](program-device.png)
+
+Once you browse to your bitfile, the Tcl console says we executed something like this
 ```tcl
 set_property PROBES.FILE {} [lindex [get_hw_devices] 0]
 set_property PROGRAM.FILE {blinky.bit} [lindex [get_hw_devices] 0]
@@ -178,4 +194,16 @@ program_hw_devices [lindex [get_hw_devices] 0]
 ```
 
 Neat. So now the LED should be blinking. We have blinken-lights!
+
+So if you've read everything above, then you should know
+
+* The basic structure of XDC and VHDL files and their purpose
+* How to generate a bitfile in Vivado from a TCL script
+* How to download a bitfile to an FPGA target using Vivado's Hardware Manager
+
+That's enough to try out little experiments with buttons, switches and leds.
+
+## Schematic Viewer
+
+You might remember that I showed you a pretty picture that showed how Vivado interpreted our VHDL. When you are learning VHDL it's easy to get confused about which features of the language are for simulation and which are for synthesis. Also, sometimes when you are first trying out VHDL, you might end up writing VHDL that doesn't really make sense in terms of hardware. For this reason, I think it's very valuable to use Vivado's schematic viewer to get an idea of what logic you are describing.
 
