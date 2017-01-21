@@ -157,7 +157,7 @@ In terms of Vivado commands to invoke these steps they are
 * `route_design`
 * `write_bitstream`
 
-Now at this point you might open up Vivado in GUI mode, create a project, add your files and start pushing buttons. That would work, but honestly, I think a less intimidating path for a software engineer learning their way around this tool for the first time is to invoke Vivado in batch mode. Invoking Vivado in batch mode means that Vivado will execute a fixed set of steps from command line. These steps are specified in a TCL script.
+Now at this point you might open up Vivado in GUI mode, create a project, add your files and start pushing buttons. That would work, but honestly, I think a less intimidating path for a software engineer learning their way around this tool for the first time is to invoke Vivado in batch mode. Invoking Vivado in batch mode means that Vivado will execute a fixed set of steps from a script.
 
 Here's an example of a TCL script you might use:
 build.tcl
@@ -184,7 +184,9 @@ For Vivado's hardware manager, I'd probably recommend doing this from GUI mode t
 
 ![Open Hardware Manager Icon](Open_HW_Manager.png)
 
-Give that a click. One of the neat things about Vivado is that it displays what TCL commands you are executing when you push a button. I like to follow along with what buttons I'm clicking to see what Vivado is doing. It's also nice because it makes it easier to copy these commands and execute them in TCL scripts. By clicking that button, you should've executed `open_hw`. At this point, we make sure our FPGA is connected to the computer, it's in JTAG mode, and powered on correctly, and the drivers installed correctly.
+Give that a click. One of the neat things about Vivado is that it displays what TCL commands you are executing when you push a button in the GUI. I like to follow along with what buttons I'm clicking to see what Vivado is doing. You can open up the TCL console and type the commands in to execute it again. You can also paste in a bunch of sequential steps and it will execute them as if you clicked them. So that's a neat feature.
+
+By clicking the Open Hardware Manager button, you should've executed `open_hw`. At this point, we make sure our FPGA is connected to the computer, it's in JTAG mode, and powered on correctly, and the drivers installed correctly.
 
 Now we want to auto-connect. There's a little icon with a green board and yellow down arrow. It's also an option if you click the Open target text up near the top.
 
@@ -215,7 +217,153 @@ So if you've read everything above, then you should know
 
 That's enough to try out little experiments with buttons, switches and leds.
 
-## Schematic Viewer
+## Schematic Viewer and the Technology Library
 
 You might remember that I showed you a pretty picture that showed how Vivado interpreted our VHDL. When you are learning VHDL it's easy to get confused about which features of the language are for simulation and which are for synthesis. Also, sometimes when you are first trying out VHDL, you might end up writing VHDL that doesn't really make sense in terms of hardware. For this reason, I think it's very valuable to use Vivado's schematic viewer to get an idea of what logic you are describing.
+
+So let's take a look at a piece of VHDL I wrote a while ago for a VGA controller.
+
+vga_controller.vhd
+```vhdl
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+library unisim;
+use unisim.vcomponents.all;
+
+entity vga_controller is
+  port (
+    clk100mhz : in std_logic;
+    h_sync : out std_logic;
+    v_sync : out std_logic;
+    disp_ena : out std_logic;
+    row : out unsigned(9 downto 0);
+    col : out unsigned(9 downto 0);
+    pclk : out std_logic
+  );
+end vga_controller;
+
+architecture behavioral of vga_controller is
+
+  signal pix_clk : std_logic;
+  signal clkfb : std_logic;
+  
+  signal h_sync_nxt : std_logic;
+  signal v_sync_nxt : std_logic;
+  signal disp_ena_nxt : std_logic;
+
+  constant h_display_time : integer := 640;
+  constant h_front_porch : integer := 16;
+  constant h_sync_time : integer := 96;
+  constant h_back_porch : integer := 48;
+  
+  constant v_display_time : integer := 480;
+  constant v_front_porch : integer := 10;
+  constant v_sync_time : integer := 2;
+  constant v_back_porch : integer := 33;
+  
+  constant hsync_start : integer := h_display_time + h_front_porch;
+  constant hsync_end : integer := hsync_start + h_sync_time;
+  constant end_of_line: integer := hsync_end + h_back_porch;
+    
+  constant vsync_start: integer := v_display_time + v_front_porch;
+  constant vsync_end: integer := vsync_start + v_sync_time;
+  constant end_of_frame: integer := vsync_start + v_back_porch - 1;
+
+  signal h_counter : unsigned(9 downto 0);
+  signal v_counter : unsigned(9 downto 0);
+
+begin
+--26892
+  clocking : plle2_base
+  generic map (
+    bandwidth          => "optimized",
+    clkfbout_mult      => 8,
+    clkfbout_phase     => 0.0,
+    clkin1_period      => 10.0,
+
+    clkout0_divide     => 32,
+    clkout0_duty_cycle => 0.5,
+    clkout0_phase      => 0.0,
+
+    divclk_divide      => 1,
+    ref_jitter1        => 0.0,
+    startup_wait       => "false"
+  )
+  port map (
+    clkin1   => clk100mhz,
+    clkout0 => pix_clk,
+    clkfbout => clkfb,
+    clkfbin  => clkfb,
+    pwrdwn   => '0',
+    rst      => '0'
+  );
+  
+  process(pix_clk)
+    begin
+      if rising_edge(pix_clk) then
+      
+        -- update all output buffer regs
+        h_sync <= h_sync_nxt;
+        v_sync <= v_sync_nxt;
+        disp_ena <= disp_ena_nxt;
+
+        
+        -- update counters
+        if h_counter < end_of_line then
+          h_counter <= h_counter + 1;
+        else
+          h_counter <= (others=>'0');
+          if v_counter < end_of_frame then
+            v_counter <= v_counter + 1;
+          else
+            v_counter <= (others=>'0');
+          end if;
+        end if;
+      end if;
+    end process;
+  
+  col <= h_counter;
+  row <= v_counter;
+  h_sync_nxt <= '0' when h_counter > hsync_start and h_counter < hsync_end else '1';
+  v_sync_nxt <= '0' when v_counter > vsync_start and v_counter < vsync_end else '1';
+  disp_ena_nxt <= '1' when h_counter < h_display_time and v_counter < v_display_time else '0';
+
+  pclk <= pix_clk;
+end behavioral;
+```
+I'm not going to talk too much about why it works how it works, but you should be able to pick out the input and output ports, the declarations, the combinational logic, and the register assignments inside of the clocked process.
+
+Suppose you want to see a block diagram of what this VHDL looks like. Let's open up Vivado again in GUI mode. Then instead of pushing buttons to start a project let's just type in a couple of commands into the TCL console.
+
+First let's read this VHDL file.
+```
+read_vhdl vga_controller.vhd
+```
+That looks like it worked, now let's synthesize it. We aren't going to do all of the steps of synthesis, we are only going to do the RTL-level synthesis. Also, this specific component isn't designed to be the top level component on the FPGA so we are going to synthesize this out of context.
+```
+synth_design -mode out_of_context -top vga_controller -rtl
+```
+Cool. It worked. On the left side of the screen it probably shows the RTL netlist window. It also might've opened up a window in the center view. That might be the schematic. Sometimes it opens up a different window. In any case, if you want to look at the schematic for any component, you can right click it in the RTL netlist window and there's an option for schematic that you can click.
+
+And that should open up a window that shows you a schematic view of the circuit. From looking at this schematic view you can see all of the combinational logic in the middle and along the right edge you should be able to see 5 registers, some of them are single bit, some of them are multi-bit. At the top, you can see a big component called a PLL that I instantiate in my VHDL.
+
+If you are really curious about what a PLL is, PLL's are a primitive in the tech library of this specific family of FPGAs that allow you to generate new clock sources from an existing clock source. In this design, I start with a 100 MHz clk and the PLL uses it to generate a 25MHz clock named pclk, which I use to update my VGA signals. There are other ways to divide clock signals, but PLL's have a lot of advantages.
+
+If you want to know what other neato little primitives are in your tech library, Xilinx publishes an excellent document that lists off useful macros and primitives: https://www.xilinx.com/support/documentation/sw_manuals/xilinx14_7/7series_hdl.pdf. In our VHDL we instantiated a PLLE2_BASE, which is on page 357 of that document. It has a written description, a description of each of the ports and attributes, and an example of how to instantiate it.
+
+If we started over and omit the `-rtl` option in our `synth_design` command
+
+```
+synth_design -mode out_of_context -top vga_controller
+```
+
+then we would be presented with a more complicated schematic that looks like this.
+
+![post synthesis netlist](vga_schematic-post-synth.png)
+
+This is a schematic that has complete mapping to the 7-series tech lib, so every single cell in this schematic is an instance of primitive in the tech lib.
+
+
 
